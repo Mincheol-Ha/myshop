@@ -1,16 +1,12 @@
 package com.example.myshop.controller;
 
-import com.example.myshop.domain.dto.ChangePasswordRequest;
-import com.example.myshop.domain.dto.DeleteAccountRequest;
-import com.example.myshop.domain.dto.UserDto;
+import com.example.myshop.domain.dto.*;
+import com.example.myshop.security.JwtTokenProvider;
 import com.example.myshop.service.AuthService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -18,11 +14,31 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final JwtTokenProvider jwtTokenProvider;
+
 
     @PostMapping("/signup")
-    public ResponseEntity<UserDto.Response> signup(@RequestBody @Valid UserDto.Request requestDto) {
-        UserDto.Response responseDto = authService.signup(requestDto);
-        return ResponseEntity.ok(responseDto);
+    public ResponseEntity<?> signup(@RequestBody UserDto.Request dto) {
+        authService.requestSignup(dto); // 인증 메일 발송
+        return ResponseEntity.ok("인증 메일이 전송되었습니다.");
+    }
+
+    @GetMapping("/verify")
+    public ResponseEntity<?> verifyByEmailLink(
+            @RequestParam String email,
+            @RequestParam String code
+    ) {
+        UserDto.Response response = authService.verifyAndSignup(email, code);
+        return ResponseEntity.ok(response); // 바로 가입 완료 및 로그인 토큰 반환
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<TokenResponseDto> login(@RequestBody UserDto.LoginRequest request) {
+        UserDto.Response response = authService.login(request.getEmail(), request.getPassword());
+        String accessToken = jwtTokenProvider.generateAccessToken(request.getEmail());
+        String refreshToken = jwtTokenProvider.generateRefreshToken(request.getEmail());
+
+        return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
     }
 
     @PatchMapping("/password")
@@ -37,11 +53,6 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<UserDto.Response> login(@RequestBody UserDto.LoginRequest request) {
-        UserDto.Response response = authService.login(request.getEmail(), request.getPassword());
-        return ResponseEntity.ok(response);
-    }
 
 
 }
